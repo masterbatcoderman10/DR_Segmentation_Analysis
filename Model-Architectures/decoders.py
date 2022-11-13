@@ -3,7 +3,8 @@ import tensorflow as tf
 def decoder_block(a, x, f):
 
     x = tf.keras.layers.Conv2DTranspose(filters=f, kernel_size=2, strides=2, padding="same", activation="relu")(x)
-    x = tf.concat([a, x], axis=-1)
+    if a is not  None:
+        x = tf.concat([a, x], axis=-1)
     x = tf.keras.layers.Conv2D(f, 3, padding="same", activation="relu")(x)
     x = tf.keras.layers.Conv2D(f, 3, padding="same", activation="relu")(x) 
 
