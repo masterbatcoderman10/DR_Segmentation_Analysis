@@ -53,6 +53,8 @@ def resnet_unet(num_classes, input_size, input_dim):
     x = preprocess_input(x=inp)
     x, a = resnet_encoder(inp, layer_dict, resnet)
 
+
+    #Decoder
     filters = [512, 256, 128, 64]
 
     output = decoder_full(a, x, filters, num_classes)

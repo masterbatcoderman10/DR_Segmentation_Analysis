@@ -12,6 +12,8 @@ def decoder_block(a, x, f):
 
 def decoder_full(activations, x, filters, num_classes):
 
+    #Looping over the activations and filters from bottom to top
+    #Activation are reversed for this effect
     for a,f in zip(activations[::-1],filters):
         x = decoder_block(a, x, f)
     
