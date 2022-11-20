@@ -1,6 +1,8 @@
 import tensorflow as tf
+import numpy as np
 from tensorflow.keras.applications.resnet import ResNet50, preprocess_input
 from .decoders import decoder_block, decoder_full
+from ..Modules.dual_attention import DualAttention, SpatialAttention, ChannelAttention
 
 def resblock_stem(input, layers):
 
@@ -36,7 +38,7 @@ def resnet_encoder(inp, layer_dict, res):
 
 
 
-def resnet_unet(num_classes, input_size, input_dim):
+def resnet_unet(num_classes, input_size, input_dim, att_indices=[], last_attention=False):
 
     #Downloading the ResNet
     resnet = ResNet50(weights="imagenet", include_top=False, input_shape=(input_size,input_size,input_dim))
@@ -57,7 +59,16 @@ def resnet_unet(num_classes, input_size, input_dim):
     #Decoder
     filters = [512, 256, 128, 64]
 
-    output = decoder_full(a, x, filters, num_classes)
+    l = len(att_indices)
+    assert l >= 0, "Attention indices should be 0 or greater"
+    assert l <= len(filters) + 1, "Number of layers for attetention can not exceed 5"
+
+    #assert len(att_indices[att_indices > 5]) == 0, "Attention indices must be from 1 to 5"
+
+    if last_attention:
+        x = DualAttention()(x)
+
+    output = decoder_full(a, x, filters, num_classes, att_indices)
 
     model = tf.keras.Model(inp, output)
 

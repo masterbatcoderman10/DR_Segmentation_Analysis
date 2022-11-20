@@ -1,6 +1,8 @@
 import tensorflow as tf
+import numpy as np
 from tensorflow.keras.applications.efficientnet import EfficientNetB4, preprocess_input
 from .decoders import decoder_block, decoder_full
+from ..Modules.dual_attention import DualAttention, SpatialAttention, ChannelAttention
 
 def effnet_stem(input, layers):
 
@@ -33,7 +35,7 @@ def effnet_encoder(inp, layer_dict, model):
     
     return x, [None] + activations[:-1]
 
-def effnet_unet(num_classes, input_size, input_dim):
+def effnet_unet(num_classes, input_size, input_dim, att_indices=[], last_attention=False):
 
     b4 = EfficientNetB4(weights="imagenet", include_top=False, input_shape=(input_size,input_size,input_dim))
 
@@ -41,7 +43,7 @@ def effnet_unet(num_classes, input_size, input_dim):
     stem_start = [b4.layers[0], b4.layers[1], b4.layers[2]]
     stem_start.extend([layer for layer in b4.layers if layer.name[:4] == "stem"])
     effnet_blocks_dict["stem"] = stem_start
-    effnet_blocks_dict = {**effnet_blocks, **{ 
+    effnet_blocks_dict = {**effnet_blocks_dict, **{ 
         f"block_{n}" : [layer for layer in b4.layers if layer.name[:6] == f"block{n}"] for n in range(1, 8)
     }}
 
@@ -56,8 +58,18 @@ def effnet_unet(num_classes, input_size, input_dim):
 
     #Decoder of the network
     filters = [160, 56, 32, 48, 64]
+
+    l = len(att_indices)
+    assert l >= 0, "Attention indices should be 0 or greater"
+    assert l <= len(filters) + 1, "Number of layers for attetention can not exceed 5"
+
+    #assert len(att_indices[att_indices > 5]) == 0, "Attention indices must be from 1 to 5"
+
+
+    if last_attention:
+        x = DualAttention()(x)
     
-    output = decoder_full(a, x, filters, num_classes)
+    output = decoder_full(a, x, filters, num_classes, att_indices)
 
     model  = tf.keras.Model(inp, output)
 
