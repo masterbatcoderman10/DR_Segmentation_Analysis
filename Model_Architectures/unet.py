@@ -33,7 +33,7 @@ def encoder_unet(inp, filters):
     x = last_encoder(x, filters[-1])
     return x, activations
 
-def unet(num_classes, input_size, input_dim):
+def unet(num_classes, input_size, input_dim, att_indices=[], last_attention=False):
 
     inp = tf.keras.layers.Input((input_size, input_size, input_dim))
 
@@ -41,8 +41,11 @@ def unet(num_classes, input_size, input_dim):
 
     x, a = encoder_unet(inp, filters=filters)
 
-    o = decoder_full(a, x, filters, num_classes)
+    if last_attention:
+        x = DualAttention()(x)
 
-    model = tf.keras.Model(inp, o)
+    output = decoder_full(a, x, filters[:-1][::-1], num_classes, att_indices)
+
+    model = tf.keras.Model(inp, output)
 
     return model
