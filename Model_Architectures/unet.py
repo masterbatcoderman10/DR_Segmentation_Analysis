@@ -5,8 +5,8 @@ def encoder_block(inp,f):
 
     x = inp
 
-    x = tf.keras.layers.Conv2D(f, 3, 1, padding="same")(x)
-    x = tf.keras.layers.Conv2D(f, 3, 1, padding="same")(x)
+    x = tf.keras.layers.Conv2D(f, 3, 1, activation="relu",padding="same")(x)
+    x = tf.keras.layers.Conv2D(f, 3, 1, activation="relu",padding="same")(x)
     a = x
     x = tf.keras.layers.MaxPool2D(2, 2)(x)
 
@@ -16,8 +16,8 @@ def last_encoder(inp, f):
 
     x = inp
 
-    x = tf.keras.layers.Conv2D(f, 3, 1, padding="same")(x)
-    x = tf.keras.layers.Conv2D(f, 3, 1, padding="same")(x)
+    x = tf.keras.layers.Conv2D(f, 3, 1, activation="relu", padding="same")(x)
+    x = tf.keras.layers.Conv2D(f, 3, 1, activation="relu", padding="same")(x)
 
     return x
 
