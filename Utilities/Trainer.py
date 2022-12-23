@@ -1,5 +1,7 @@
 class Trainer:
 
+    """This class can be used to train a multi-class segmentation model, it contains many helpful visualization methods that can show the detailed performance of network training."""
+
     def __init__(self, network, train_dl, epochs, loss_function, optimizer, scheduler=None):
 
         self.network = network
@@ -10,11 +12,13 @@ class Trainer:
         self.scheduler = scheduler 
     
     def get_mins(self, seconds):
+        
+        """This function converts seconds to minutes and seconds"""
 
         return f"{seconds // 60} mins : {seconds % 60} seconds"
     
     def main_step(self, img_batch, target_batch, multi=False):
-    
+        
         #Zeroing out previous gradients
         self.optimizer.zero_grad()
 
@@ -178,7 +182,13 @@ class Trainer:
             ax2[i].axis("off")
         plt.show()
 
-    def fit(self, log, validation=False, valid_dl=None):
+    def fit(self, log=True, validation=False, valid_dl=None):
+
+        """Calling this function initiates network training.
+        Arguments: log: True or False, defaults to True. This argument determines whether to log the loss at the end of the epoch along with the time taken.
+                   validation: True or False, defaults to False. This argument determines whether a validation step should be taken. If this is set to true, a validation dataloader must be passed in.
+                   valid_dl: A torch dataloader containing the same data type as the training dataloader must be passed in, if validation is set to True. 
+        """
 
         for e in range(self.epochs):
             print(f"Starting epoch : {e+1} -------------------------------------------------------------------")
@@ -189,13 +199,13 @@ class Trainer:
             #Indicates start of batch
             start = True
             start_2 = True
-            
+            total_batches = 0
             
             #Training Loop
             self.network.train()
             for img_batch, annotation_batch in self.train_dl:
                 
-                batch_size = img_batch.shape[1]
+                total_batches += 1
                 #Putting the images and annotations on the device
                 img_batch = img_batch.to(device)
                 #Obtaining the loss and the predictions for current batch - This is multiclass classification
@@ -217,7 +227,7 @@ class Trainer:
             
             #If logging is enabled print total loss value for the epoch divided by batch size
             if log:
-                loss_for_epoch = round(loss_value / batch_size, 3)
+                loss_for_epoch = round(loss_value / total_batches, 3)
                 print(f"Loss at epoch : {e+1} : {loss_for_epoch}")
 
             
@@ -234,13 +244,13 @@ class Trainer:
                 val_loss = 0
                 val_start = True
                 val_start_2 = True
-
+                val_batches = 0
                 with torch.no_grad():
                     self.network.eval()
 
                     for img_batch, annotation_batch in valid_dl:
                         
-                        val_batch_size = img_batch.shape[1]
+                        val_batches += 1
                         val_img_batch = img_batch.to(device)
                         valid_loss, val_pred = self.eval_step(val_img_batch, annotation_batch, multi=True)
                         
@@ -257,7 +267,7 @@ class Trainer:
 
                 #If logging is enabled print total loss value for the epoch divided by batch size
                 if log:
-                    val_loss_for_epoch = round(val_loss / val_batch_size, 3)
+                    val_loss_for_epoch = round(val_loss / val_batches, 3)
                     print(f"Validation Loss at epoch : {e+1} : {val_loss_for_epoch}")
 
                 
