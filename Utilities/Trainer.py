@@ -1,8 +1,6 @@
 class Trainer:
 
-    """This class can be used to train a multi-class segmentation model, it contains many helpful visualization methods that can show the detailed performance of network training."""
-
-    def __init__(self, network, train_dl, epochs, loss_function, optimizer, scheduler=None):
+    def __init__(self, network, train_dl, n_classes, epochs, loss_function, optimizer, scheduler=None):
 
         self.network = network
         self.train_dl = train_dl
@@ -10,15 +8,18 @@ class Trainer:
         self.loss_function = loss_function
         self.optimizer = optimizer
         self.scheduler = scheduler 
+        self.n_classes = n_classes
+        self.multi = True if n_classes > 1 else False
+
     
     def get_mins(self, seconds):
         
         """This function converts seconds to minutes and seconds"""
 
-        return f"{seconds // 60} mins : {seconds % 60} seconds"
+        return f"{math.floor(seconds // 60)} mins : {math.floor(seconds % 60)} seconds"
     
-    def main_step(self, img_batch, target_batch, multi=False):
-        
+    def main_step(self, img_batch, target_batch):
+
         #Zeroing out previous gradients
         self.optimizer.zero_grad()
 
@@ -26,7 +27,7 @@ class Trainer:
         pred = self.network(img_batch)
         
         #Cross-Entropy expects a 1D tensor of the long type
-        if multi:
+        if self.multi:
             #Argmax along the channel dimension
             target_batch = torch.argmax(target_batch, dim=1)
             target_batch = target_batch.type(torch.LongTensor).to(device)
@@ -34,6 +35,7 @@ class Trainer:
             target_batch = target_batch.float().to(device)
             
         #Compute Loss
+ 
         loss = self.loss_function(pred, target_batch)
         #Calculate gradients through backpropagation
         loss.backward()            
@@ -42,12 +44,13 @@ class Trainer:
         
         return loss, pred
     
-    def eval_step(self,img_batch, target_batch, multi=False):
+    def eval_step(self,img_batch, target_batch):
     
         #Assumes the network is already put into evaluation mode
         val_pred = self.network(img_batch)
         #Cross-Entropy expects a 1D tensor of the long type
-        if multi:
+        
+        if self.multi:
             #Argmax along the channel dimension
             target_batch = torch.argmax(target_batch, dim=1)
             target_batch = target_batch.type(torch.LongTensor).to(device)
@@ -55,16 +58,18 @@ class Trainer:
             target_batch = target_batch.float().to(device)
 
         #Compute Loss
+
         loss = self.loss_function(val_pred, target_batch)
 
         return loss, val_pred
     
-    def plot_sample_prediction(self, img_batch, target_batch, pred_batch, ix, n_classes=1, background=False):
+    def plot_sample_prediction(self, img_batch, target_batch, pred_batch, ix, background=False):
     
         """This function plots along with a sample image and annotation, the prediction for the sample image
+           background : is background included in the annotations
         """
-        assert n_classes > 0
-        multi = False if n_classes == 1 else True
+        assert self.n_classes > 0
+        multi = False if self.n_classes == 1 else True
         #Initializing the softmax and the sigmoid
         softmax = nn.Softmax(dim=0)
         sigmoid = nn.Sigmoid()
@@ -73,7 +78,7 @@ class Trainer:
 
         #Getting an image and reshaping it
         test_img = img_batch[ix]
-        test_img = torch.reshape(test_img, (512,512,3))
+        test_img = torch.reshape(test_img, (test_img.shape[1],test_img.shape[1],3))
         #Removing the image from the gpu and the computation graph
         n_img = test_img.to('cpu').detach().numpy()
         
@@ -85,8 +90,9 @@ class Trainer:
         #Removing the annotation from the gpu and computation graph
         test_ann = target_batch[ix]
         n_ann = test_ann.to('cpu').detach().numpy()
+        if multi:
         #Making channels last for a single annotation
-        n_ann = np.rollaxis(n_ann, 0, 3)
+            n_ann = np.rollaxis(n_ann, 0, 3)
         
         #Getting the corresponding prediction
         #For multi-class it will be (C,H,W)
@@ -111,7 +117,7 @@ class Trainer:
         
         
         #Creating masks that can be plotted
-        if not background and multi:
+        if (not background) and multi:
             #This step creates a mask for the background and concatenates it to the front of the annotation and prediction
             #Then the argmax operation is performed to obtain a matrix which can be plotted
             
@@ -133,9 +139,10 @@ class Trainer:
             n_pred_clamped = np.argmax(n_pred_clamped, axis=0)
         else:
             
-            n_ann = n_ann
-            n_pred = n_pred
-            n_pred_clamped = n_pred_clamped
+            #Squeeze the annotation and the prediction since imshow expects 3 channels or just a matrix
+            n_ann = np.squeeze(n_ann)
+            n_pred = np.squeeze(n_pred) 
+            n_pred_clamped = np.squeeze(n_pred_clamped)
         
 
         #Plotting the image
@@ -152,43 +159,39 @@ class Trainer:
         ax[3].axis("off")
         plt.show()
 
-    def plot_class_activations(self, target_batch, pred_batch, n_classes):
+    def plot_class_activations(self, target_batch, pred_batch):
     
         """This function plots the individual class activations given a prediction image. 
         This function assumes that the channels are first.
         This function also assumes that no softmax has been applied
         """
         
+        #Reminder -- Change the test pred to soft pred and uncomment the declaration
+        
         softmax = nn.Softmax(dim=0)
         
-        test_pred = pred_batch[0]
+        test_pred = pred_batch[0].detach().to("cpu")
         test_ann = target_batch[0].detach().to("cpu")
         
         soft_pred = softmax(test_pred)
         soft_pred = soft_pred.detach().to("cpu").numpy()
         
-        fig, ax = plt.subplots(1, n_classes, figsize=(n_classes*2, n_classes))
+        fig, ax = plt.subplots(1, self.n_classes, figsize=(self.n_classes*2, self.n_classes))
         
-        for i in range(n_classes):
+        for i in range(self.n_classes):
             
             ax[i].imshow(test_ann[i])
             ax[i].axis("off")
         
-        fig, ax2 = plt.subplots(1, n_classes, figsize=(n_classes*2,n_classes))
+        fig, ax2 = plt.subplots(1, self.n_classes, figsize=(self.n_classes*2,self.n_classes))
         
-        for i in range(n_classes):
+        for i in range(self.n_classes):
 
             ax2[i].imshow(soft_pred[i])
             ax2[i].axis("off")
         plt.show()
 
     def fit(self, log=True, validation=False, valid_dl=None):
-
-        """Calling this function initiates network training.
-        Arguments: log: True or False, defaults to True. This argument determines whether to log the loss at the end of the epoch along with the time taken.
-                   validation: True or False, defaults to False. This argument determines whether a validation step should be taken. If this is set to true, a validation dataloader must be passed in.
-                   valid_dl: A torch dataloader containing the same data type as the training dataloader must be passed in, if validation is set to True. 
-        """
 
         for e in range(self.epochs):
             print(f"Starting epoch : {e+1} -------------------------------------------------------------------")
@@ -209,14 +212,15 @@ class Trainer:
                 #Putting the images and annotations on the device
                 img_batch = img_batch.to(device)
                 #Obtaining the loss and the predictions for current batch - This is multiclass classification
-                loss, pred = self.main_step(img_batch, annotation_batch, multi=True)
+                loss, pred = self.main_step(img_batch, annotation_batch)
             
                 #Check for the start of the batch to visualize a prediction
                 if start:
-                    self.plot_sample_prediction(img_batch, annotation_batch, pred, 0, 4, True)
+                    self.plot_sample_prediction(img_batch, annotation_batch, pred, 0, background=True)
                     #Indicate that next batch is not start of epoch
-                    print(f"Plotting Activations")
-                    self.plot_class_activations(annotation_batch.to(device), pred, 5)
+                    if self.multi:
+                        print(f"Plotting Activations")
+                        self.plot_class_activations(annotation_batch.to(device), pred, 5)
                     start = False
                 
                 #Updating loss by adding loss for current batch  
@@ -252,10 +256,10 @@ class Trainer:
                         
                         val_batches += 1
                         val_img_batch = img_batch.to(device)
-                        valid_loss, val_pred = self.eval_step(val_img_batch, annotation_batch, multi=True)
+                        valid_loss, val_pred = self.eval_step(val_img_batch, annotation_batch)
                         
                         if val_start:
-                            self.plot_sample_prediction(val_img_batch, annotation_batch, val_pred, 0, 4, True)
+                            self.plot_sample_prediction(val_img_batch, annotation_batch, val_pred, 0, background=True)
                             val_start = False
 
                         val_loss += valid_loss.item()

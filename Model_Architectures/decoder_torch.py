@@ -18,31 +18,37 @@ class DecoderBlock(nn.Module):
     def forward(self, inp, a):
         
         x = self.relu(self.upconv(inp))
+        #x = self.upconv(inp)
         if a is not None:
             x = torch.cat([a, x], axis=1)
-
-        x = self.relu(self.conv_1(x))
+            x = self.relu(self.conv_1(x))
+            
+        x = self.relu(self.conv_2(x))
 
         return x
 
 
 class Decoder(nn.Module):
 
-    def __init__(self, d_in, filters, num_classes):
+    def __init__(self, d_in, filters, num_classes, simple=False, sigmoid=False):
 
         super().__init__()
 
         self.decoder_blocks = []
 
         for f in filters:
-
-            db = DecoderBlock(d_in, f)
+            
+            if simple:
+                db = SimpleDecoderBlock(d_in, f)
+            else:
+                db = DecoderBlock(d_in, f)
 
             self.decoder_blocks.append(db)
             d_in = f
         
         self.output = nn.Conv2d(f, num_classes, 1, 1)
         self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
+        self.sig = nn.Sigmoid() if sigmoid else None
     
     def forward(self, inputs, activations):
 
@@ -52,7 +58,11 @@ class Decoder(nn.Module):
             x = db(x, a)
         
         output = self.output(x)
+        if self.sig is not None:
+            output = self.sig(output)
 
 
         return output
+        
+
         
