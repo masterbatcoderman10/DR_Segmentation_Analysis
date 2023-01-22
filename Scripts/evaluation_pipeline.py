@@ -1,31 +1,54 @@
 import json
+
 class EvalPipeline:
     
-    def __init__(self, gt, img, n,model_dict, class_dict):
+    def __init__(self, dataloader, n,model_dict, class_dict, color_dict):
         
-        self.gt = gt
-        self.img = img
+        """"This is an evaluation pipeline which can be used to determine the evaluation metrics for a group of segmentation models."""
+
+        self.dl = dataloader
+        self.img, self.gt = zip(*[(data[0].numpy(), data[1].numpy()) for data in dataloader])
+        self.img = np.concatenate(self.img)
+        #For the methods defined below, the ground-truths need to be in the following shape : (B, H, W, 1)
+        self.gt = np.concatenate(self.gt)
+
+        self.gt = np.transpose(self.gt, (0, 2, 3, 1))
+        self.gt = np.argmax(self.gt, axis=3)
+        self.gt = np.expand_dims(self.gt, axis=-1)
+        
         self.model_dict = model_dict
         self.n = n
         self.class_dict = class_dict
-
+        self.color_dict = color_dict
         self.prediction_gen()
         
     def prediction_gen(self):
+
+        """Generates predictions for each segmentation model"""
         
         predictions = {}
         
         for m in self.model_dict.keys():
             model = self.model_dict[m]
-   
-            pred = model.predict(self.img)
-            pred = np.array(pred)
-            pred = np.argmax(pred, axis=3)
-            pred = pred.reshape(pred.shape[0], pred.shape[1], pred.shape[2], 1)
+
+            #For the methods below, the predictions need to be in the following shape : (B, H, W, 1)
+            pred = model.predict(self.dl)
+            pred = np.argmax(pred, axis=-1)
+            pred = np.expand_dims(pred, axis=-1)
             
             predictions[m] = pred
             
         self.pred = predictions
+    
+    #This function swaps colors from a class map
+    def color_swap(self, img):
+    
+        for key in self.color_dict.keys():
+
+            c = np.where(img[:, :, [0,1,2]] == [key, key, key])
+            img[c[0], c[1], :] = self.color_dict[key]
+
+        return img
             
     
     def stage_one(self, metrics=["SENS", "SPEC", "IoU", "DSC"], path="stage_1.csv"):
@@ -99,9 +122,17 @@ class EvalPipeline:
     
     def stage_four(self, img_dir, gt_dir, img_files, gt_files, path="stage_4.png"):
         
-        #Assumes the images aren't 4 dimensional tensors
+        """This method is used to compare the predictions of the models passed in with the ground truth for all the images passed in as arguments into this function.
+        img_dir : this is the directory of the images : string
+        gt_dir : this is the directory where the ground truth images are present : string
+        img_files : the specific image file names choosen to plot : list of strings
+        gt_files : the corresponding ground truth files choosen to comapare against : list of strings
+        The img_files and gt_files must be present within the img_dir and gt_dir respectively.
+        Furthermore, the same number of image files and ground truth files should be passed in.
+        """
         
         #Number of images should be the same as G.T
+        assert len(img_files) == len(gt_files)
         print(img_dir)
         print(gt_dir)
         print(img_files)
@@ -120,7 +151,7 @@ class EvalPipeline:
         for i, img in enumerate(img_files):
             
             img_path = os.path.join(img_dir, img)
-            image = load_img(img_path)
+            image = cv2.imread(img_path)
             ax[0, i].imshow(image)
             
             ax[0,i].set_xticks([])
@@ -129,11 +160,11 @@ class EvalPipeline:
         #Plotting the ground truth
         for i, ann in enumerate(gt_files):
             
-            img_path = os.path.join(gt_dir, ann)
-            image = tf.io.read_file(img_path)
-            image = tf.io.decode_png(image)
+            gt_path = os.path.join(gt_dir, ann)
+            gt = cv2.imread(gt_path)
+            gt = cv2.resize(gt, (512, 512))
 
-            ax[1, i].imshow(image)
+            ax[1, i].imshow(gt)
             
             ax[1,i].set_xticks([])
             ax[1, i].set_yticks([])
@@ -147,12 +178,17 @@ class EvalPipeline:
             for n, img in enumerate(img_files):
                 
                 img_path = os.path.join(img_dir, img)
-                image = tf.io.read_file(img_path)
-                image = tf.io.decode_jpeg(image, 3)
-                image = tf.image.resize(image, [224, 224])
-                image = np.expand_dims(image, axis=0)
-                pred = model.predict(image)
-                pred = np.squeeze(pred)
+                image = cv2.imread(img_path)
+                image = cv2.resize(image, (512, 512))
+                image = image / 255.0
+                image = np.transpose(image, (2, 0, 1))
+                image = torch.from_numpy(image).float()
+                
+                pred = model.predict_image(image)
+                pred = np.argmax(pred, axis=-1)
+                pred = np.transpose(pred, (1,2,0))
+                pred = np.repeat(pred, repeats=3,axis=-1)
+                pred = self.color_swap(pred)
                 
                 ax[i, n].imshow(pred)
                 ax[i,n].set_xticks([])

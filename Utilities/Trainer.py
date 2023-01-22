@@ -26,13 +26,8 @@ class Trainer:
         #Make model prediction
         pred = self.network(img_batch)
         
-        #Cross-Entropy expects a 1D tensor of the long type
-        if self.multi:
-            #Argmax along the channel dimension
-            target_batch = torch.argmax(target_batch, dim=1)
-            target_batch = target_batch.type(torch.LongTensor).to(device)
-        else:
-            target_batch = target_batch.float().to(device)
+
+        target_batch = target_batch.float().to(device)
             
         #Compute Loss
  
@@ -48,14 +43,8 @@ class Trainer:
     
         #Assumes the network is already put into evaluation mode
         val_pred = self.network(img_batch)
-        #Cross-Entropy expects a 1D tensor of the long type
         
-        if self.multi:
-            #Argmax along the channel dimension
-            target_batch = torch.argmax(target_batch, dim=1)
-            target_batch = target_batch.type(torch.LongTensor).to(device)
-        else:
-            target_batch = target_batch.float().to(device)
+        target_batch = target_batch.float().to(device)
 
         #Compute Loss
 
@@ -78,10 +67,9 @@ class Trainer:
 
         #Getting an image and reshaping it
         test_img = img_batch[ix]
-        test_img = torch.reshape(test_img, (test_img.shape[1],test_img.shape[1],3))
         #Removing the image from the gpu and the computation graph
         n_img = test_img.to('cpu').detach().numpy()
-        
+        n_img = np.transpose(n_img, (1,2,0))
         H = n_img.shape[0]
         W = n_img.shape[1]
         
@@ -192,6 +180,9 @@ class Trainer:
         plt.show()
 
     def fit(self, log=True, validation=False, valid_dl=None):
+        
+        training_losses = []
+        validation_losses = []
 
         for e in range(self.epochs):
             print(f"Starting epoch : {e+1} -------------------------------------------------------------------")
@@ -232,6 +223,7 @@ class Trainer:
             #If logging is enabled print total loss value for the epoch divided by batch size
             if log:
                 loss_for_epoch = round(loss_value / total_batches, 3)
+                training_losses.append(loss_for_epoch)
                 print(f"Loss at epoch : {e+1} : {loss_for_epoch}")
 
             
@@ -272,6 +264,7 @@ class Trainer:
                 #If logging is enabled print total loss value for the epoch divided by batch size
                 if log:
                     val_loss_for_epoch = round(val_loss / val_batches, 3)
+                    validation_losses.append(val_loss_for_epoch)
                     print(f"Validation Loss at epoch : {e+1} : {val_loss_for_epoch}")
 
                 
@@ -287,6 +280,28 @@ class Trainer:
             print("\n")
             print("\n")
             print("\n")
+        
+
+
+        # Create a list of the epoch numbers
+        epochs = range(1, self.epochs + 1)
+
+        # Plot the training loss
+        plt.plot(epochs, training_losses, 'r-', label='Training Loss', linewidth=2)
+
+        # Plot the validation loss
+        plt.plot(epochs, validation_losses, 'b--', label='Validation Loss', linewidth=2)
+
+        # Set the title and labels
+        plt.title('Training and Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+
+        # Add a legend
+        plt.legend()
+        # Show the plot
+        plt.show()
+
                 
                 
                     

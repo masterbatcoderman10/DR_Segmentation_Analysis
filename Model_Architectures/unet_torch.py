@@ -74,13 +74,13 @@ class FullEncoder(nn.Module):
 
         return x, activations
 
-class UNet(nn.Module):
+class UNet(nn.Module, BaseModel):
 
-    def __init__(self, d_in, num_classes, filters):
+    def __init__(self, d_in, num_classes, filters, simple=False, sigmoid=False):
 
         super().__init__()
         self.encoder = FullEncoder(d_in, filters)
-        self.decoder = Decoder(filters[-1], filters[:-1][::-1], num_classes)
+        self.decoder = Decoder(filters[-1], filters[:-1][::-1], num_classes, simple=simple, sigmoid=sigmoid)
 
     def forward(self,inputs):
 
@@ -89,3 +89,5 @@ class UNet(nn.Module):
         o = self.decoder(x, activations[::-1])
 
         return o
+    
+    

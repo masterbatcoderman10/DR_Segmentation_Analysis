@@ -29,8 +29,9 @@ class MultiClassSegmentationDataset(Dataset):
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (self.H,self.W))
-        norm_img = cv2.normalize(img, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-        norm_img = norm_img.reshape(norm_img.shape[-1], norm_img.shape[0], norm_img.shape[1])
+        #norm_img = cv2.normalize(img, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+        norm_img = img / 255.0
+        norm_img = np.transpose(norm_img, (2, 0, 1))
         img_tensor = torch.from_numpy(norm_img)
         img_tensor = img_tensor.float()
         

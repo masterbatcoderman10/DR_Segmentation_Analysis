@@ -9,10 +9,10 @@ class DecoderBlock(nn.Module):
 
 
         super().__init__()
-        self.upconv = nn.ConvTranspose2d(d_in, d_out, 2, 2)
-        self.conv_1 = nn.Conv2d(d_out*2, d_out, 3, 1, "same")
+        self.upconv = nn.ConvTranspose2d(d_in, d_out, 3, 2, padding=1)
+        self.conv_1 = nn.Conv2d(d_out*2, d_out, 3, 1, padding=1)
         self.relu = nn.ReLU()
-        self.conv_2 = nn.Conv2d(d_out, d_out, 3, 1, "same")
+        self.conv_2 = nn.Conv2d(d_out, d_out, 3, 1, padding=1)
         
 
     def forward(self, inp, a):

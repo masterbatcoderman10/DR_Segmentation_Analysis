@@ -1,7 +1,7 @@
 from torchvision.models import vgg19, VGG19_Weights
 
 
-class VGGUNet(nn.Module):
+class VGGUNet(nn.Module, BaseModel):
 
     def __init__(self, num_classes, simple=False, sigmoid=False):
 
