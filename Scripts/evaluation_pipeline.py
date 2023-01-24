@@ -1,5 +1,4 @@
 import json
-
 class EvalPipeline:
     
     def __init__(self, dataloader, n,model_dict, class_dict, color_dict):
@@ -11,7 +10,6 @@ class EvalPipeline:
         self.img = np.concatenate(self.img)
         #For the methods defined below, the ground-truths need to be in the following shape : (B, H, W, 1)
         self.gt = np.concatenate(self.gt)
-
         self.gt = np.transpose(self.gt, (0, 2, 3, 1))
         self.gt = np.argmax(self.gt, axis=3)
         self.gt = np.expand_dims(self.gt, axis=-1)
@@ -48,6 +46,27 @@ class EvalPipeline:
             c = np.where(img[:, :, [0,1,2]] == [key, key, key])
             img[c[0], c[1], :] = self.color_dict[key]
 
+        return img
+    
+    def image_overlay(self, img, ann):
+        
+        """This function overlays the annotation over the image
+        This function assumes that the background color is pixel value (0,0,0) in RGB
+        img : numpy array in the shape : (height, width, color, alpha)
+        ann : numpy array in the shape : (height, width, color, alpha)"""
+        
+        c = np.where(ann[:,:,[0,1,2]] == [0,0,0])
+        c_2 = np.where(ann[:,:,[0,1,2]] != [0,0,0])
+        ann[c[0], c[1],-1] = 0
+        ann[c_2[0], c_2[1],-1] = 100
+        
+        img = Image.fromarray(img)
+        ann = Image.fromarray(ann)
+        
+        #Overlaying the annotation on the image
+        img.paste(ann, (0,0), ann)
+        img = np.array(img)
+        
         return img
             
     
@@ -118,6 +137,78 @@ class EvalPipeline:
         
         
         return scores_2
+    
+    def stage_three(self, img_dir, gt_dir, img_files, gt_files, path="stage_3.png"):
+        
+        assert len(img_files) == len(gt_files)
+        n_cols = len(img_files)
+        n_rows = len(list(self.model_dict.keys())) + 1
+        
+        #Defining the figure
+        fig, ax = plt.subplots(n_cols, n_rows, figsize=(n_rows*3,n_cols*3))
+        
+        #Plotting the ground truth overlayed on the image
+        for i, (img, ann) in enumerate(zip(img_files, gt_files)):
+            
+            
+            
+            img_path = os.path.join(img_dir, img)
+            image = cv2.imread(img_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
+            
+            gt_path = os.path.join(gt_dir, ann)
+            gt = cv2.imread(gt_path)
+            gt = cv2.cvtColor(gt, cv2.COLOR_BGR2RGBA)
+            
+            overlay_img = self.image_overlay(image, gt)
+            overlay_img = cv2.cvtColor(overlay_img, cv2.COLOR_RGBA2RGB)
+            ax[i, 0].imshow(overlay_img)
+            ax[i, 0].set_xlabel("ground truth")
+            ax[i, 0].set_xticks([])
+            ax[i, 0].set_yticks([])
+        
+        for i, model_name in enumerate(self.model_dict.keys()):
+            
+            i = i+1
+            model = self.model_dict[model_name]
+            
+            for n, img in enumerate(img_files):
+                
+                img_path = os.path.join(img_dir, img)
+                image = cv2.imread(img_path)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                image = cv2.resize(image, (512, 512))
+                image = image / 255.0
+                image = np.transpose(image, (2, 0, 1))
+                image = torch.from_numpy(image).float()
+                
+                pred = model.predict_image(image)
+                pred = np.argmax(pred, axis=-1)
+                pred = np.transpose(pred, (1,2,0))
+                pred = np.repeat(pred, repeats=3,axis=-1)
+                pred = self.color_swap(pred)
+                pred = np.uint8(pred)
+                pred = cv2.cvtColor(pred, cv2.COLOR_RGB2RGBA)
+
+                
+                image = cv2.imread(img_path)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA) 
+                image = cv2.resize(image, (512, 512))
+                
+                overlayed_prediction = self.image_overlay(image, pred)
+                overlayed_prediction = cv2.cvtColor(overlayed_prediction, cv2.COLOR_RGBA2RGB)
+                
+                ax[n, i].imshow(overlayed_prediction)
+                ax[n, i].set_xticks([])
+                ax[n, i].set_yticks([])
+                ax[n, i].set_xlabel(model_name)
+                
+                
+            
+            
+            
+        
+        
 
     
     def stage_four(self, img_dir, gt_dir, img_files, gt_files, path="stage_4.png"):
@@ -152,6 +243,7 @@ class EvalPipeline:
             
             img_path = os.path.join(img_dir, img)
             image = cv2.imread(img_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             ax[0, i].imshow(image)
             
             ax[0,i].set_xticks([])
@@ -162,7 +254,8 @@ class EvalPipeline:
             
             gt_path = os.path.join(gt_dir, ann)
             gt = cv2.imread(gt_path)
-            gt = cv2.resize(gt, (512, 512))
+            gt = cv2.cvtColor(gt, cv2.COLOR_BGR2RGB)
+            #gt = cv2.resize(gt, (512, 512))
 
             ax[1, i].imshow(gt)
             
@@ -179,6 +272,7 @@ class EvalPipeline:
                 
                 img_path = os.path.join(img_dir, img)
                 image = cv2.imread(img_path)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 image = cv2.resize(image, (512, 512))
                 image = image / 255.0
                 image = np.transpose(image, (2, 0, 1))
