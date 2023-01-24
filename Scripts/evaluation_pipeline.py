@@ -228,7 +228,7 @@ class EvalPipeline:
             some_num = np.random.uniform(0.1, 0.3, 1)
             
             ax.scatter(x=f1, y=ys, color=colors[i], marker=markers[i], label=model_name)
-            ax.set_yticks(ticks=[0,1,2],labels=self.class_dict)
+            ax.set_yticks(ticks=list(range(5)),labels=self.class_dict)
             ax.legend(loc="best")
             ax.grid()
         
