@@ -3,7 +3,7 @@ from torchvision.models import vgg19, VGG19_Weights
 
 class VGGUNet(nn.Module, BaseModel):
 
-    def __init__(self, num_classes, simple=False, sigmoid=False):
+    def __init__(self, num_classes, simple=False, sigmoid=False, attention=False, attention_indices=[]):
 
         super().__init__()
         
@@ -17,6 +17,9 @@ class VGGUNet(nn.Module, BaseModel):
 
         self.filters = [512, 256, 128, 64]
         self.decoder = Decoder(self.filters[0], self.filters, num_classes, simple=simple, sigmoid=sigmoid)
+
+        self.attention = attention
+        self.attention_indices = attention_indices
     
     def getActivations(self):
         def hook(model, input, output):
@@ -33,6 +36,13 @@ class VGGUNet(nn.Module, BaseModel):
         h4 = self.vgg[26].register_forward_hook(self.getActivations())
 
         vgg_output = self.vgg(input)
+
+        if self.attention:
+            in_channels = vgg_output.shape[1]
+            vgg_output = DualAttention(in_channels)(vgg_output)
+
+            for ix in self.attention_indices:
+                self.activations[ix] = DualAttention(self.filters[ix])(self.activations[ix])
 
         final_output = self.decoder(vgg_output, self.activations[::-1])
 
