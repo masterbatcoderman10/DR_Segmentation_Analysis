@@ -32,7 +32,7 @@ class EfficientNetUNet(nn.Module):
         e4 = self.effnet_b4_backbone[5][-1].register_forward_hook(self.getActivations())
         e5 = self.effnet_b4_backbone[7][-1].register_forward_hook(self.getActivations())
 
-        _ = self.effnet_b4_backbone(input)
+        self.effnet_b4_backbone(input)
         effnet_output = self.activations.pop()
 
         final_output = self.decoder(effnet_output, self.activations[::-1])
