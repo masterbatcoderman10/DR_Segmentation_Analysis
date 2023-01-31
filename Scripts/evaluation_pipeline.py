@@ -70,7 +70,7 @@ class EvalPipeline:
         return img
             
     
-    def stage_one(self, metrics=["SENS", "SPEC", "IoU", "DSC"], path="stage_1.csv"):
+    def stage_one(self, metrics=["SENS", "SPEC", "IoU", "DSC"], model_keys=[], path="stage_1.csv"):
         
         scores = {}
         
@@ -79,7 +79,7 @@ class EvalPipeline:
         for metric in metrics:
             
             scores[metric] = []
-            for p in self.pred.keys():
+            for p in model_keys:
                 
                 
                 current_pred = self.pred[p]
@@ -103,12 +103,12 @@ class EvalPipeline:
             
         return scores
     
-    def stage_two(self, metrics=["SENS", "SPEC", "IoU", "DSC"], path="stage_2.json"):
+    def stage_two(self, metrics=["SENS", "SPEC", "IoU", "DSC"], model_keys=[], path="stage_2.json", csv_path="stage_2.csv"):
         
         scores = {}
         
         # Have to change all of done_pred instances into self.pred
-        for p in self.pred.keys():
+        for p in model_keys:
             scores[p] = []
             print(f"Working on : {p}...")
             for metric in metrics:
@@ -123,12 +123,47 @@ class EvalPipeline:
         scores_2 = {}
         
         print("Creating final dict")
-        for p in self.pred.keys():
-            scores_2[p] = {}
-            for i, c in enumerate(self.class_dict):
-                scores_2[p][c] = {}
-                for n, m in enumerate(metrics):
-                    scores_2[p][c][m] = scores[p][i][n]
+        with open(csv_path, "w") as csv_file:
+            
+            #Writing the csv headers
+            csv_file.write("model_name")
+            csv_file.write(",")
+            csv_file.write("class")
+            csv_file.write(",")
+            
+            for metric in metrics:
+                csv_file.write(metric)
+                csv_file.write(",")
+            
+            csv_file.write("\n")
+            
+            for p in model_keys:
+                scores_2[p] = {}
+                
+                for i, c in enumerate(self.class_dict):
+                    scores_2[p][c] = {}
+                    
+                    #Starting off the row
+                    csv_file.write(p)
+                    csv_file.write(",")
+                    csv_file.write(c)
+                    csv_file.write(",")
+                    
+                    for n, m in enumerate(metrics):
+
+                        #p : model type
+                        #c : class
+                        #m : metric
+                        
+                        #Writing in each metric
+                        csv_file.write(str(scores[p][i][n]))
+                        csv_file.write(",")
+                        
+                        scores_2[p][c][m] = scores[p][i][n]
+                    
+                    csv_file.write("\n")
+                        
+                    
         
         
 
@@ -138,11 +173,11 @@ class EvalPipeline:
         
         return scores_2
     
-    def stage_three(self, img_dir, gt_dir, img_files, gt_files, path="stage_3.png"):
+    def stage_three(self, img_dir, gt_dir, img_files, gt_files, model_keys=[],path="stage_3.png"):
         
         assert len(img_files) == len(gt_files)
         n_cols = len(img_files)
-        n_rows = len(list(self.model_dict.keys())) + 1
+        n_rows = len(model_keys) + 1
         
         #Defining the figure
         fig, ax = plt.subplots(n_cols, n_rows, figsize=(n_rows*3,n_cols*3))
@@ -167,7 +202,7 @@ class EvalPipeline:
             ax[i, 0].set_xticks([])
             ax[i, 0].set_yticks([])
         
-        for i, model_name in enumerate(self.model_dict.keys()):
+        for i, model_name in enumerate(model_keys):
             
             i = i+1
             model = self.model_dict[model_name]
@@ -202,16 +237,16 @@ class EvalPipeline:
                 ax[n, i].set_xticks([])
                 ax[n, i].set_yticks([])
                 ax[n, i].set_xlabel(model_name)
-                
-                
-            
-            
-            
         
-        
-
+        plt.subplots_adjust(left=0.2,
+                    right=0.9,
+                    wspace=0.4,
+                    hspace=0.4)
+            
+        plt.savefig(path, dpi=100)
+                    
     
-    def stage_four(self, img_dir, gt_dir, img_files, gt_files, path="stage_4.png"):
+    def stage_four(self, img_dir, gt_dir, img_files, gt_files, model_keys=[],path="stage_4.png"):
         
         """This method is used to compare the predictions of the models passed in with the ground truth for all the images passed in as arguments into this function.
         img_dir : this is the directory of the images : string
@@ -230,7 +265,7 @@ class EvalPipeline:
         print(gt_files)
         
         n_cols = len(img_files)
-        n_rows = len(list(self.model_dict.keys())) +2
+        n_rows = len(model_keys) +2
         
         #Defining the figure
         fig, ax = plt.subplots(n_rows, n_cols, figsize=(n_cols*3,n_rows*3))
@@ -262,7 +297,7 @@ class EvalPipeline:
             ax[1,i].set_xticks([])
             ax[1, i].set_yticks([])
         
-        for i, model_name in enumerate(self.model_dict.keys()):
+        for i, model_name in enumerate(model_keys):
             
             i = i+2
             model = self.model_dict[model_name]
@@ -298,14 +333,14 @@ class EvalPipeline:
     
     ### Stage 5 : F1 score plots per model per class
     
-    def stage_five(self, path="stage_5.png"):
+    def stage_five(self, model_keys=[],path="stage_5.png"):
         
 
         
         markers = ["x", "+", ".", "1", "*", "d"]
         colors = ["lime", "fuchsia", "darkorange", "gold", "salmon", "indigo"]
         
-        model_names = list(self.pred.keys())
+        model_names = model_keys
         
         fig, ax = plt.subplots(1,1, figsize=(6,self.n))
         ys = range(self.n)

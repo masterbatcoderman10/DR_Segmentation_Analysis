@@ -2,9 +2,9 @@ from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
 
 effnet_b4 = efficientnet_b4(weights=EfficientNet_B4_Weights)
 
-class EfficientNetUNet(nn.Module):
+class EfficientNetUNet(nn.Module, BaseModel):
 
-    def __init__(self, num_classes, simple=False, sigmoid=False):
+    def __init__(self, num_classes, simple=False, sigmoid=False, attention=False):
 
         super().__init__()
         self.activations = [None]
@@ -15,7 +15,12 @@ class EfficientNetUNet(nn.Module):
             param.requires_grad = False
         
         filters = [160, 56, 32, 48, 64]
-        self.decoder = Decoder(filters[0], filters, num_classes, simple, sigmoid)
+        self.decoder = Decoder(448, filters, num_classes, simple, sigmoid)
+        
+        self.attention = attention
+        if attention:
+            self.dual_attention = DualAttention(448)
+            self.dual_attention_2 = DualAttention(160)
     
     def getActivations(self):
         def hook(model, input, output):
@@ -34,6 +39,10 @@ class EfficientNetUNet(nn.Module):
 
         self.effnet_b4_backbone(input)
         effnet_output = self.activations.pop()
+        
+        if self.attention:
+            effnet_output = self.dual_attention(effnet_output)
+            self.activations[-1] = self.dual_attention_2(self.activations[-1])
 
         final_output = self.decoder(effnet_output, self.activations[::-1])
 

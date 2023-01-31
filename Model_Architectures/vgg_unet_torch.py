@@ -3,7 +3,7 @@ from torchvision.models import vgg19, VGG19_Weights
 
 class VGGUNet(nn.Module, BaseModel):
 
-    def __init__(self, num_classes, simple=False, sigmoid=False, attention=False, attention_indices=[]):
+    def __init__(self, num_classes, simple=False, sigmoid=False, attention=False, multi_task=False):
 
         super().__init__()
         
@@ -19,7 +19,11 @@ class VGGUNet(nn.Module, BaseModel):
         self.decoder = Decoder(self.filters[0], self.filters, num_classes, simple=simple, sigmoid=sigmoid)
 
         self.attention = attention
-        self.attention_indices = attention_indices
+        if attention:
+            self.dual_attention = DualAttention(self.filters[0])
+            self.dual_attention_2 = DualAttention(self.filters[0])
+            
+        self.multi_task = multi_task
     
     def getActivations(self):
         def hook(model, input, output):
@@ -38,11 +42,8 @@ class VGGUNet(nn.Module, BaseModel):
         vgg_output = self.vgg(input)
 
         if self.attention:
-            in_channels = vgg_output.shape[1]
-            vgg_output = DualAttention(in_channels)(vgg_output)
-
-            for ix in self.attention_indices:
-                self.activations[ix] = DualAttention(self.filters[ix])(self.activations[ix])
+            vgg_output = self.dual_attention(vgg_output)
+            self.activations[-1] = self.dual_attention_2(self.activations[-1])
 
         final_output = self.decoder(vgg_output, self.activations[::-1])
 
@@ -50,5 +51,11 @@ class VGGUNet(nn.Module, BaseModel):
         h2.remove()
         h3.remove()
         h4.remove()
+        
+        if self.multi_task:
+            clf_output = f.max_pool2d(final_output, final_output.shape[2:])
+            clf_output = torch.squeeze(torch.squeeze(clf_output))
+            
+            return final_output, clf_output
 
         return final_output

@@ -80,6 +80,7 @@ class DualAttention(nn.Module):
 
     def __init__(self, in_channels):
 
+        super(DualAttention, self).__init__()
         self.C = in_channels
 
         self.conv1 = nn.Conv2d(self.C, self.C, 1)

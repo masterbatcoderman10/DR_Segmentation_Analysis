@@ -4,7 +4,7 @@ resnet_model = resnet50(weights=ResNet50_Weights.DEFAULT)
 
 class ResNetUNet(nn.Module, BaseModel):
 
-    def __init__(self, num_classes, simple=False, sigmoid=False):
+    def __init__(self, num_classes, simple=False, sigmoid=False, attention=False):
 
         super().__init__()
 
@@ -17,6 +17,10 @@ class ResNetUNet(nn.Module, BaseModel):
 
         filters = [512, 256, 64, 64]
         self.decoder = Decoder(1024, filters, num_classes, simple, sigmoid)
+        self.attention = attention
+        if attention:
+            self.dual_attention = DualAttention(1024)
+            self.dual_attention_2 = DualAttention(filters[0])
     
     def getActivations(self):
         def hook(model, input, output):
@@ -32,6 +36,10 @@ class ResNetUNet(nn.Module, BaseModel):
         hr3 = self.resnet_backbone[5][-1].register_forward_hook(self.getActivations())
 
         resnet_output = self.resnet_backbone(input)
+        
+        if self.attention:
+            resnet_output = self.dual_attention(resnet_output)
+            self.activations[-1] = self.dual_attention_2(self.activations[-1])
 
         final_output = self.decoder(resnet_output, self.activations[::-1])
 

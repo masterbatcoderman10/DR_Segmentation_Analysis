@@ -18,20 +18,31 @@ class Trainer:
 
         return f"{math.floor(seconds // 60)} mins : {math.floor(seconds % 60)} seconds"
     
-    def main_step(self, img_batch, target_batch):
+    def main_step(self, img_batch, target_batch, clf_loss):
 
         #Zeroing out previous gradients
         self.optimizer.zero_grad()
 
         #Make model prediction
-        pred = self.network(img_batch)
+        if clf_loss is None:
+            pred = self.network(img_batch)
+        else:
+            pred, clf_pred = self.network(img_batch)
+            clf_target_batch = f.max_pool2d(target_batch, target_batch.shape[2:])
+            clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch)).float().to(device)
         
-
         target_batch = target_batch.float().to(device)
+        
             
         #Compute Loss
- 
-        loss = self.loss_function(pred, target_batch)
+        if clf_loss is None: 
+            loss = self.loss_function(pred, target_batch)
+        else:
+            #Compute the loss for the multi-task training approach
+            #(segmentation_prediction, segmentation_target), (classification_prediction, classification_target)
+            loss = clf_loss((pred, target_batch), (clf_pred[:, 1:], clf_target_batch[:, 1:]))
+            
+            
         #Calculate gradients through backpropagation
         loss.backward()            
         #Update the model parameters
@@ -39,16 +50,26 @@ class Trainer:
         
         return loss, pred
     
-    def eval_step(self,img_batch, target_batch):
+    def eval_step(self,img_batch, target_batch, clf_loss):
     
         #Assumes the network is already put into evaluation mode
-        val_pred = self.network(img_batch)
-        
+        if clf_loss is None:
+            val_pred = self.network(img_batch)
+        else:
+            #If it's multi-task training, then network will have 2 outputs. We have to handle that
+            seg_pred, clf_pred = self.network(img_batch)
+            clf_target_batch = f.max_pool2d(target_batch, target_batch.shape[2:])
+            clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch)).float().to(device)
+            
         target_batch = target_batch.float().to(device)
 
         #Compute Loss
-
-        loss = self.loss_function(val_pred, target_batch)
+        if clf_loss is None:
+            loss = self.loss_function(val_pred, target_batch)
+        else:
+            #Compute the loss for the multi-task training approach
+            #(segmentation_prediction, segmentation_target), (classification_prediction, classification_target)
+            loss = clf_loss((seg_pred, target_batch), (clf_pred[:, 1:], clf_target_batch[:, 1:]))
 
         return loss, val_pred
     
@@ -179,7 +200,7 @@ class Trainer:
             ax2[i].axis("off")
         plt.show()
 
-    def fit(self, log=True, validation=False, valid_dl=None):
+    def fit(self, log=True, validation=False, valid_dl=None, model_checkpoint=True, clf_loss=None, model_save_path="./model.pth"):
         
         training_losses = []
         validation_losses = []
@@ -203,7 +224,8 @@ class Trainer:
                 #Putting the images and annotations on the device
                 img_batch = img_batch.to(device)
                 #Obtaining the loss and the predictions for current batch - This is multiclass classification
-                loss, pred = self.main_step(img_batch, annotation_batch)
+
+                loss, pred = self.main_step(img_batch, annotation_batch, clf_loss)
             
                 #Check for the start of the batch to visualize a prediction
                 if start:
@@ -211,7 +233,7 @@ class Trainer:
                     #Indicate that next batch is not start of epoch
                     if self.multi:
                         print(f"Plotting Activations")
-                        self.plot_class_activations(annotation_batch.to(device), pred, 5)
+                        self.plot_class_activations(annotation_batch.to(device), pred)
                     start = False
                 
                 #Updating loss by adding loss for current batch  
@@ -227,12 +249,9 @@ class Trainer:
                 print(f"Loss at epoch : {e+1} : {loss_for_epoch}")
 
             
-            #Modifying learning rate
-            if self.scheduler is not None:
-                self.scheduler.step()
-            
             #Validation Loop
             ######################################################################################################################################
+            best_val_loss = float('inf')
             if validation and valid_dl is not None:
 
                 print("Running Validation Step")
@@ -248,7 +267,8 @@ class Trainer:
                         
                         val_batches += 1
                         val_img_batch = img_batch.to(device)
-                        valid_loss, val_pred = self.eval_step(val_img_batch, annotation_batch)
+                        
+                        valid_loss, val_pred = self.eval_step(val_img_batch, annotation_batch, clf_loss)
                         
                         if val_start:
                             self.plot_sample_prediction(val_img_batch, annotation_batch, val_pred, 0, background=True)
@@ -266,6 +286,14 @@ class Trainer:
                     val_loss_for_epoch = round(val_loss / val_batches, 3)
                     validation_losses.append(val_loss_for_epoch)
                     print(f"Validation Loss at epoch : {e+1} : {val_loss_for_epoch}")
+                
+                if val_loss_for_epoch < best_val_loss and model_checkpoint:
+                    best_val_loss = val_loss_for_epoch
+                    torch.save(self.network.state_dict(), model_save_path)
+                
+                #Modifying learning rate
+                if self.scheduler is not None:
+                    self.scheduler.step(val_loss_for_epoch)
 
                 
             #End of Epoch -----------------------------------------------------------------------------------------------------------------------
@@ -301,9 +329,5 @@ class Trainer:
         plt.legend()
         # Show the plot
         plt.show()
-
-                
-                
-                    
-
-                    
+    
+    
