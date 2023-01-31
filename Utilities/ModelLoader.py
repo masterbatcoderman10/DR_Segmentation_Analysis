@@ -7,16 +7,16 @@ def model_loader(model_specifications, num_classes):
 
     for model_name in model_specifications.keys():
 
-        base, simplicity, path = model_specifications[model_name]
+        base, simplicity, attention, path = model_specifications[model_name]
 
         if base == 0:
-            model = UNet(num_classes=num_classes, d_in=3,filters=[64, 128, 256, 512, 1024], simple=simplicity).to(device)
+            model = UNet(num_classes=num_classes, d_in=3,filters=[64, 128, 256, 512, 1024], simple=simplicity, attention=attention).to(device)
         elif base == 1:
-            model = VGGUNet(num_classes, simplicity).to(device)
+            model = VGGUNet(num_classes, simplicity, attention=attention).to(device)
         elif base == 2:
-            model = ResNetUNet(num_classes, simplicity).to(device)
+            model = ResNetUNet(num_classes, simplicity, attention=attention).to(device)
         elif base == 3:
-            model = EfficientNetUNet(num_classes, simplicity).to(device)
+            model = EfficientNetUNet(num_classes, simplicity, attention=attention).to(device)
         else:
             print("Unknown model base selected")
             return -1
