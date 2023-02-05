@@ -41,7 +41,43 @@ class Evaluator:
         if routine == 3:
             self.eval_pipeline.stage_three(img_dir, gt_dir, img_files, gt_files, keys, path)
         else:
-            self.eval_pipeline.stage_four(img_dir, gt_dir, img_files, gt_files, keys, path)     
+            self.eval_pipeline.stage_four(img_dir, gt_dir, img_files, gt_files, keys, path)
+
+    def quantative(self, stub_name, model_keys):
+
+        s1_ext = stub_name + "_s1.csv"     
+        s2_ext = stub_name + "_s2.json"
+        s2_csv_ext = stub_name + "_s2.csv"
+        s5_ext = stub_name + "_s5.png"
+        s5_csv_ext = stub_name + "_s5.csv"
+
+        quant_routine = {
+
+            1 : (model_keys, s1_ext),
+            2 : (model_keys, s2_ext, s2_csv_ext),
+            5 : (model_keys, s5_ext, s5_csv_ext)
+        }
+
+        self.evaluate(quant_routine)
+    
+    def qualitative(self, stub_name, model_keys, args):
+
+        img_dir, gt_dir, img_files, gt_files = args
+
+        s3_ext = stub_name + "_s3.png"
+        s4_ext = stub_name + "_s4.png"
+
+        qual_routine = {
+            3: (img_dir, gt_dir, img_files, gt_files, model_keys, s3_ext),
+            4 : (img_dir, gt_dir, img_files, gt_files, model_keys, s4_ext)
+        }
+
+        self.evaluate(qual_routine)
+    
+    def all_routines(self, stub_name, model_keys, args):
+
+        self.quantative(stub_name, model_keys)
+        self.qualitative(stub_name, model_keys, args)
     
     def evaluate(self, eval_routines):
         
