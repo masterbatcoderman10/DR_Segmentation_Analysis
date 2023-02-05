@@ -333,9 +333,9 @@ class EvalPipeline:
     
     ### Stage 5 : F1 score plots per model per class
     
-    def stage_five(self, model_keys=[],path="stage_5.png"):
+    def stage_five(self, model_keys=[],path="stage_5.png", csv_path="stage_5.csv"):
         
-
+        f1_scores = []
         
         markers = ["x", "+", ".", "1", "*", "d"]
         colors = ["lime", "fuchsia", "darkorange", "gold", "salmon", "indigo"]
@@ -353,14 +353,38 @@ class EvalPipeline:
             recall = evaluate(self.gt, pred, metric="Recall", multi_class=True, n_classes=self.n)
             
             f1 = (2 * prec * recall) / (prec + recall)
+            f1_scores[model_name] = f1
             
             some_num = np.random.uniform(0.1, 0.3, 1)
             
             ax.scatter(x=f1, y=ys, color=colors[i], marker=markers[i], label=model_name)
-            ax.set_yticks(ticks=list(range(5)),labels=self.class_dict)
+            ax.set_yticks(ticks=list(range(self.n)),labels=self.class_dict)
             ax.legend(loc="best")
             ax.grid()
         
+        with open(csv_path, "w") as f:
+            
+            f.write("Model,")
+            for class_name in self.class_dict:
+                f.write(class_name)
+                f.write(",")
+                
+            f.write("\n")
+            
+            for i, model_name in enumerate(model_names):
+                
+                f.write(model_name)
+                f.write(",")
+                
+                f1_score = f1_scores[model_name]
+                
+                for f1 in f1_score:
+                    f.write(f1)
+                    f.write(",")
+                    
+                f.write("\n")
+                
+            
         plt.savefig(path, dpi=100)
         
         
