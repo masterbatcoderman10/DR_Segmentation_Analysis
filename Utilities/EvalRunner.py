@@ -23,7 +23,7 @@ class Evaluator:
             path = os.path.join(self.results_dir, path)
             csv_path = os.path.join(self.results_dir, csv_path)
             if routine == 2:
-                self.eval_pipeline.stage_two(model_keys=keys, path=path, csv_path=path)
+                self.eval_pipeline.stage_two(model_keys=keys, path=path, csv_path=csv_path)
             else:
                 self.eval_pipeline.stage_five(keys, path, csv_path)
         else:
