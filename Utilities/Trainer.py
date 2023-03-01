@@ -1,6 +1,6 @@
 class Trainer:
 
-    def __init__(self, network, train_dl, n_classes, epochs, loss_function, optimizer, scheduler=None):
+    def __init__(self, network, train_dl, n_classes, epochs, loss_function, optimizer, scheduler=None, patience=None):
 
         self.network = network
         self.train_dl = train_dl
@@ -8,8 +8,27 @@ class Trainer:
         self.loss_function = loss_function
         self.optimizer = optimizer
         self.scheduler = scheduler 
+        #Initialize the early stopping mechanism
+        if patience is not None:
+            self.patience = patience
+            self.best = float('inf')
+            self.counter = 0
+            self.es = True
+
         self.n_classes = n_classes
         self.multi = True if n_classes > 1 else False
+    
+    def early_stop(self, metric):
+
+        if metric < self.best:
+            self.best = metric
+        else:
+            self.counter += 1
+        
+        if self.counter > self.patience:
+            return -1
+        else:
+            return 0
 
     
     def get_mins(self, seconds):
@@ -27,9 +46,13 @@ class Trainer:
         if clf_loss is None:
             pred = self.network(img_batch)
         else:
-            pred, clf_pred = self.network(img_batch)
+            pred = self.network(img_batch)
+            
+            clf_pred = f.max_pool2d(pred, pred.shape[2:])
+            clf_pred = torch.squeeze(torch.squeeze(clf_pred, dim=-1), dim=-1)
+            
             clf_target_batch = f.max_pool2d(target_batch, target_batch.shape[2:])
-            clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch)).float().to(device)
+            clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch, dim=-1), dim=-1).float().to(device)
         
         target_batch = target_batch.float().to(device)
         
@@ -57,9 +80,13 @@ class Trainer:
             val_pred = self.network(img_batch)
         else:
             #If it's multi-task training, then network will have 2 outputs. We have to handle that
-            seg_pred, clf_pred = self.network(img_batch)
+            val_pred = self.network(img_batch)
+            
+            clf_pred = f.max_pool2d(val_pred, val_pred.shape[2:])
+            clf_pred = torch.squeeze(torch.squeeze(clf_pred, dim=-1), dim=-1)
+            
             clf_target_batch = f.max_pool2d(target_batch, target_batch.shape[2:])
-            clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch)).float().to(device)
+            clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch, dim=-1), dim=-1).float().to(device)
             
         target_batch = target_batch.float().to(device)
 
@@ -69,7 +96,7 @@ class Trainer:
         else:
             #Compute the loss for the multi-task training approach
             #(segmentation_prediction, segmentation_target), (classification_prediction, classification_target)
-            loss = clf_loss((seg_pred, target_batch), (clf_pred[:, 1:], clf_target_batch[:, 1:]))
+            loss = clf_loss((val_pred, target_batch), (clf_pred[:, 1:], clf_target_batch[:, 1:]))
 
         return loss, val_pred
     
@@ -204,6 +231,7 @@ class Trainer:
         
         training_losses = []
         validation_losses = []
+        best_val_loss = float('inf')
 
         for e in range(self.epochs):
             print(f"Starting epoch : {e+1} -------------------------------------------------------------------")
@@ -251,7 +279,7 @@ class Trainer:
             
             #Validation Loop
             ######################################################################################################################################
-            best_val_loss = float('inf')
+
             if validation and valid_dl is not None:
 
                 print("Running Validation Step")
@@ -287,9 +315,17 @@ class Trainer:
                     validation_losses.append(val_loss_for_epoch)
                     print(f"Validation Loss at epoch : {e+1} : {val_loss_for_epoch}")
                 
+                # Saving the best version of the model
                 if val_loss_for_epoch < best_val_loss and model_checkpoint:
                     best_val_loss = val_loss_for_epoch
                     torch.save(self.network.state_dict(), model_save_path)
+                    print(f"Saved model at val loss : {val_loss_for_epoch}")
+                
+                if self.es:
+                    #Return value of the early stop
+                    rv = self.early_stop(val_loss_for_epoch)
+                    if rv == -1:
+                        break
                 
                 #Modifying learning rate
                 if self.scheduler is not None:

@@ -2,25 +2,33 @@ from torchvision.models import efficientnet_b4, EfficientNet_B4_Weights
 
 effnet_b4 = efficientnet_b4(weights=EfficientNet_B4_Weights)
 
-class EfficientNetUNet(nn.Module, BaseModel):
+class ResNetUNet(nn.Module, BaseModel):
 
     def __init__(self, num_classes, simple=False, sigmoid=False, attention=False):
 
         super().__init__()
-        self.activations = [None]
 
-        effnet_b4 = efficientnet_b4(weights=EfficientNet_B4_Weights)
-        self.effnet_b4_backbone = nn.Sequential(*(list(effnet_b4.children())[0]))
-        for param in self.effnet_b4_backbone.parameters():
+        self.activations = [None]
+        resnet_model = resnet50(weights=ResNet50_Weights.DEFAULT)
+
+        self.resnet_backbone = nn.Sequential(*(list(resnet_model.children())[0:7]))
+        for param in self.resnet_backbone.parameters():
             param.requires_grad = False
-        
-        filters = [160, 56, 32, 48, 64]
-        self.decoder = Decoder(448, filters, num_classes, simple, sigmoid)
-        
+
+        filters = [512, 256, 64, 64]
+        self.decoder = Decoder(1024, filters, num_classes, simple, sigmoid)
         self.attention = attention
-        if attention:
-            self.dual_attention = DualAttention(448)
-            self.dual_attention_2 = DualAttention(160)
+        if attention == 1:
+            self.attention = CSA(1024)
+            self.attention_2 = CSA(filters[0])
+        elif attention == 2:
+            self.attention = DualAttention(1024)
+            self.attention_2 = DualAttention(filters[0])
+        elif attention > 2 or attention < 0:
+            print("Attention can only be 0, 1, or 2")
+            return -1
+        else:
+            pass
     
     def getActivations(self):
         def hook(model, input, output):
@@ -31,30 +39,20 @@ class EfficientNetUNet(nn.Module, BaseModel):
 
         self.activations = [None]
 
-        e1 = self.effnet_b4_backbone[0].register_forward_hook(self.getActivations())
-        e2 = self.effnet_b4_backbone[2][-1].register_forward_hook(self.getActivations())
-        e3 = self.effnet_b4_backbone[3][-1].register_forward_hook(self.getActivations())
-        e4 = self.effnet_b4_backbone[5][-1].register_forward_hook(self.getActivations())
-        e5 = self.effnet_b4_backbone[7][-1].register_forward_hook(self.getActivations())
+        hr1 = self.resnet_backbone[2].register_forward_hook(self.getActivations())
+        hr2 = self.resnet_backbone[4][2].register_forward_hook(self.getActivations())
+        hr3 = self.resnet_backbone[5][-1].register_forward_hook(self.getActivations())
 
-        self.effnet_b4_backbone(input)
-        effnet_output = self.activations.pop()
+        resnet_output = self.resnet_backbone(input)
         
         if self.attention:
-            effnet_output = self.dual_attention(effnet_output)
-            self.activations[-1] = self.dual_attention_2(self.activations[-1])
+            resnet_output = self.attention(resnet_output)
+            self.activations[-1] = self.attention_2(self.activations[-1])
 
-        final_output = self.decoder(effnet_output, self.activations[::-1])
+        final_output = self.decoder(resnet_output, self.activations[::-1])
 
-        e1.remove()
-        e2.remove()
-        e3.remove()
-        e4.remove()
-        e5.remove()
+        hr1.remove()
+        hr2.remove()
+        hr3.remove()
 
         return final_output
-
-        
-        
-
-        

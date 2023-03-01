@@ -8,15 +8,15 @@ test_img_path = "9_left.jpg";
 test_img_pre = imread(data_dir + test_img_path);
 %imshow(test_img);
 
-test_img = medfilt3(test_img_pre, [3,3,3]);
+test_img = medfilt3(test_img_pre, [5,5,5]);
 
-[R, G, B] = imsplit(test_img);
+% [R, G, B] = imsplit(test_img);
+% 
+% R = adapthisteq(R, "ClipLimit", 0.006);
+% G = adapthisteq(G, "ClipLimit", 0.006);
+% B = adapthisteq(B, "ClipLimit", 0.006);
 
-R = adapthisteq(R, "ClipLimit", 0.006);
-G = adapthisteq(G, "ClipLimit", 0.006);
-B = adapthisteq(B, "ClipLimit", 0.006);
-
-test_img = cat(3, R, G, B);
+% test_img = cat(3, R, G, B);
 % test_img = rgb2lab(test_img);
 % 
 % L = test_img(:,:, 1);

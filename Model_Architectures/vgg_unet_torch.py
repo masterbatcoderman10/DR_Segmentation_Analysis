@@ -1,9 +1,8 @@
 from torchvision.models import vgg19, VGG19_Weights
 
-
 class VGGUNet(nn.Module, BaseModel):
 
-    def __init__(self, num_classes, simple=False, sigmoid=False, attention=False, multi_task=False):
+    def __init__(self, num_classes, simple=False, sigmoid=False, attention=False):
 
         super().__init__()
         
@@ -19,11 +18,19 @@ class VGGUNet(nn.Module, BaseModel):
         self.decoder = Decoder(self.filters[0], self.filters, num_classes, simple=simple, sigmoid=sigmoid)
 
         self.attention = attention
-        if attention:
-            self.dual_attention = DualAttention(self.filters[0])
-            self.dual_attention_2 = DualAttention(self.filters[0])
-            
-        self.multi_task = multi_task
+        if attention == 1:
+            self.attention = CSA(self.filters[0])
+            self.attention_2 = CSA(self.filters[0])
+        elif attention == 2:
+            self.attention = DualAttention(self.filters[0])
+            self.attention = DualAttention(self.filters[0])
+        elif attention > 2 or attention < 2:
+            print("Print attention can only be 0, 1, or 2")
+            return -1
+        else:
+            pass
+                                           
+
     
     def getActivations(self):
         def hook(model, input, output):
@@ -42,8 +49,8 @@ class VGGUNet(nn.Module, BaseModel):
         vgg_output = self.vgg(input)
 
         if self.attention:
-            vgg_output = self.dual_attention(vgg_output)
-            self.activations[-1] = self.dual_attention_2(self.activations[-1])
+            vgg_output = self.attention(vgg_output)
+            self.activations[-1] = self.attention_2(self.activations[-1])
 
         final_output = self.decoder(vgg_output, self.activations[::-1])
 
@@ -51,11 +58,5 @@ class VGGUNet(nn.Module, BaseModel):
         h2.remove()
         h3.remove()
         h4.remove()
-        
-        if self.multi_task:
-            clf_output = f.max_pool2d(final_output, final_output.shape[2:])
-            clf_output = torch.squeeze(torch.squeeze(clf_output))
-            
-            return final_output, clf_output
 
         return final_output

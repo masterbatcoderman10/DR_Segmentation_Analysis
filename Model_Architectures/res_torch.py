@@ -18,9 +18,17 @@ class ResNetUNet(nn.Module, BaseModel):
         filters = [512, 256, 64, 64]
         self.decoder = Decoder(1024, filters, num_classes, simple, sigmoid)
         self.attention = attention
-        if attention:
-            self.dual_attention = DualAttention(1024)
-            self.dual_attention_2 = DualAttention(filters[0])
+        if attention == 1:
+            self.attention = CSA(1024)
+            self.attention_2 = CSA(filters[0])
+        elif attention == 2:
+            self.attention = DualAttention(1024)
+            self.attention_2 = DualAttention(filters[0])
+        elif attention > 2 or attention < 0:
+            print("Attention can only be 0, 1, or 2")
+            return -1
+        else:
+            pass
     
     def getActivations(self):
         def hook(model, input, output):
@@ -38,8 +46,8 @@ class ResNetUNet(nn.Module, BaseModel):
         resnet_output = self.resnet_backbone(input)
         
         if self.attention:
-            resnet_output = self.dual_attention(resnet_output)
-            self.activations[-1] = self.dual_attention_2(self.activations[-1])
+            resnet_output = self.attention(resnet_output)
+            self.activations[-1] = self.attention_2(self.activations[-1])
 
         final_output = self.decoder(resnet_output, self.activations[::-1])
 
