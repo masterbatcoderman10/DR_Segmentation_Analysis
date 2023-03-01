@@ -9,19 +9,23 @@ class Trainer:
         self.optimizer = optimizer
         self.scheduler = scheduler 
         #Initialize the early stopping mechanism
+        self.dice = Dice(n_classes)
         if patience is not None:
             self.patience = patience
-            self.best = float('inf')
+            self.best = float('inf') * -1
             self.counter = 0
             self.es = True
+        else:
+            self.es = False
 
         self.n_classes = n_classes
         self.multi = True if n_classes > 1 else False
     
     def early_stop(self, metric):
 
-        if metric < self.best:
+        if metric > self.best:
             self.best = metric
+            self.counter = 0
         else:
             self.counter += 1
         
@@ -37,7 +41,7 @@ class Trainer:
 
         return f"{math.floor(seconds // 60)} mins : {math.floor(seconds % 60)} seconds"
     
-    def main_step(self, img_batch, target_batch, clf_loss):
+    def main_step(self, img_batch, target_batch, clf_loss, bcm_params):
 
         #Zeroing out previous gradients
         self.optimizer.zero_grad()
@@ -55,7 +59,6 @@ class Trainer:
             clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch, dim=-1), dim=-1).float().to(device)
         
         target_batch = target_batch.float().to(device)
-        
             
         #Compute Loss
         if clf_loss is None: 
@@ -64,6 +67,16 @@ class Trainer:
             #Compute the loss for the multi-task training approach
             #(segmentation_prediction, segmentation_target), (classification_prediction, classification_target)
             loss = clf_loss((pred, target_batch), (clf_pred[:, 1:], clf_target_batch[:, 1:]))
+        
+        #Compute Binary Class Map Weighting
+        if bcm_params is not None:
+            pred = torch.softmax(pred, dim=1)
+            class_index, bcm_loss_function = bcm_params
+            class_map_pred = pred[:,class_index, :, :]
+            class_map_target = target_batch[:, class_index, :, :]
+            bcm_loss = bcm_loss_function(class_map_pred, class_map_target)
+
+            loss = loss + bcm_loss
             
             
         #Calculate gradients through backpropagation
@@ -73,7 +86,7 @@ class Trainer:
         
         return loss, pred
     
-    def eval_step(self,img_batch, target_batch, clf_loss):
+    def eval_step(self,img_batch, target_batch, clf_loss, bcm_params):
     
         #Assumes the network is already put into evaluation mode
         if clf_loss is None:
@@ -97,6 +110,14 @@ class Trainer:
             #Compute the loss for the multi-task training approach
             #(segmentation_prediction, segmentation_target), (classification_prediction, classification_target)
             loss = clf_loss((val_pred, target_batch), (clf_pred[:, 1:], clf_target_batch[:, 1:]))
+        
+        if bcm_params is not None:
+            val_pred = torch.softmax(val_pred, dim=1)
+            class_index, bcm_loss_function = bcm_params
+            class_map_pred = val_pred[:,class_index, :, :]
+            class_map_target = target_batch[:, class_index, :, :]
+            bcm_loss = bcm_loss_function(class_map_pred, class_map_target)
+            loss = loss + bcm_loss
 
         return loss, val_pred
     
@@ -227,11 +248,11 @@ class Trainer:
             ax2[i].axis("off")
         plt.show()
 
-    def fit(self, log=True, validation=False, valid_dl=None, model_checkpoint=True, clf_loss=None, model_save_path="./model.pth"):
+    def fit(self, log=True, validation=False, valid_dl=None, model_checkpoint=True, clf_loss=None, bcm_params=None,model_save_path="./model.pth"):
         
         training_losses = []
         validation_losses = []
-        best_val_loss = float('inf')
+        best_val_loss = float('inf') * -1.0
 
         for e in range(self.epochs):
             print(f"Starting epoch : {e+1} -------------------------------------------------------------------")
@@ -253,7 +274,7 @@ class Trainer:
                 img_batch = img_batch.to(device)
                 #Obtaining the loss and the predictions for current batch - This is multiclass classification
 
-                loss, pred = self.main_step(img_batch, annotation_batch, clf_loss)
+                loss, pred = self.main_step(img_batch, annotation_batch, clf_loss, bcm_params)
             
                 #Check for the start of the batch to visualize a prediction
                 if start:
@@ -285,6 +306,7 @@ class Trainer:
                 print("Running Validation Step")
                 ######### Validation step ############
                 val_loss = 0
+                val_dice_score = 0
                 val_start = True
                 val_start_2 = True
                 val_batches = 0
@@ -296,7 +318,9 @@ class Trainer:
                         val_batches += 1
                         val_img_batch = img_batch.to(device)
                         
-                        valid_loss, val_pred = self.eval_step(val_img_batch, annotation_batch, clf_loss)
+                        valid_loss, val_pred = self.eval_step(val_img_batch, annotation_batch, clf_loss, bcm_params)
+                        #Compute the dice metric
+                        val_dice_score += self.dice(val_pred, annotation_batch.float().to(device)).item()
                         
                         if val_start:
                             self.plot_sample_prediction(val_img_batch, annotation_batch, val_pred, 0, background=True)
@@ -312,24 +336,29 @@ class Trainer:
                 #If logging is enabled print total loss value for the epoch divided by batch size
                 if log:
                     val_loss_for_epoch = round(val_loss / val_batches, 3)
+                    val_dice_for_epoch = round(val_dice_score / val_batches, 3)
                     validation_losses.append(val_loss_for_epoch)
                     print(f"Validation Loss at epoch : {e+1} : {val_loss_for_epoch}")
+                    print(f"Validation Dice Score at epoch : {e+1} : {val_dice_for_epoch}")
                 
                 # Saving the best version of the model
-                if val_loss_for_epoch < best_val_loss and model_checkpoint:
-                    best_val_loss = val_loss_for_epoch
+                if val_dice_for_epoch > best_val_loss and model_checkpoint:
+                    best_val_loss = val_dice_for_epoch
                     torch.save(self.network.state_dict(), model_save_path)
-                    print(f"Saved model at val loss : {val_loss_for_epoch}")
+                    print(f"Saved model at val dice : {best_val_loss}")
                 
+                
+                #Early Stopping
                 if self.es:
                     #Return value of the early stop
-                    rv = self.early_stop(val_loss_for_epoch)
+                    rv = self.early_stop(val_dice_for_epoch)
                     if rv == -1:
+                        print(f"Early Stopping kicked in : Stopping at epoch {e+1}")
                         break
                 
                 #Modifying learning rate
                 if self.scheduler is not None:
-                    self.scheduler.step(val_loss_for_epoch)
+                    self.scheduler.step(val_dice_for_epoch)
 
                 
             #End of Epoch -----------------------------------------------------------------------------------------------------------------------
@@ -345,10 +374,11 @@ class Trainer:
             print("\n")
             print("\n")
         
-
+        if not model_checkpoint:
+            torch.save(self.network.state_dict(), model_save_path)
 
         # Create a list of the epoch numbers
-        epochs = range(1, self.epochs + 1)
+        epochs = range(1, e + 2)
 
         # Plot the training loss
         plt.plot(epochs, training_losses, 'r-', label='Training Loss', linewidth=2)
