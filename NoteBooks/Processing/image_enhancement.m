@@ -48,27 +48,31 @@ image_file_names = {pre_image_files.name};
 
 
 
-% for i = 1:length(pre_image_files)
-%     
-%     img_file = image_file_names{i};
-%     img = imread(fullfile(data_dir,img_file));
-%     img = medfilt3(img, [3,3,3]);
-% 
-% %     [R,G,B] = imsplit(img);
-% 
-%     %R = adapthisteq(R, "ClipLimit", 0.006);
-%     %G = adapthisteq(G, "ClipLimit", 0.006);
-%     %B = adapthisteq(B, "ClipLimit", 0.006);
-% 
-%     %enh_img = cat(3, R, G, B);
-% 
-%     dest_path = target_dir + img_file;
-%     %Change to enh_img when applying any enhancement, just img for noise
-%     %removal
-%     imwrite(img, dest_path);
-%     fprintf("Processed image %d\n", i);
-% 
-% end
+for i = 1:length(pre_image_files)
+    
+    img_file = image_file_names{i};
+    img = imread(fullfile(data_dir,img_file));
+    %img = medfilt3(img, [3,3,3]);
+
+    [R,G,B] = imsplit(img);
+
+    R = medfilt2(R, [3,3]);
+    G = medfilt2(G, [3,3]);
+    B = medfilt2(B, [3,3]);
+
+    %R = adapthisteq(R, "ClipLimit", 0.006);
+    %G = adapthisteq(G, "ClipLimit", 0.006);
+    %B = adapthisteq(B, "ClipLimit", 0.006);
+
+    enh_img = cat(3, R, G, B);
+
+    dest_path = target_dir + img_file;
+    %Change to enh_img when applying any enhancement, just img for noise
+    %removal
+    imwrite(enh_img, dest_path);
+    fprintf("Processed image %d\n", i);
+
+end
 
 
 
