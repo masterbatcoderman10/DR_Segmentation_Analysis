@@ -21,13 +21,22 @@ class Trainer:
         self.n_classes = n_classes
         self.multi = True if n_classes > 1 else False
     
-    def early_stop(self, metric):
-
-        if metric > self.best:
-            self.best = metric
-            self.counter = 0
+    def early_stop(self, metric, mode=0):
+        
+        #mode=0 is for minimum, mode=1 is for maximum
+        
+        if mode:
+            if metric < self.best:
+                self.best = metric
+                self.counter = 0
+            else:
+                self.counter += 1
         else:
-            self.counter += 1
+            if metric < self.best:
+                self.best = metric
+                self.counter = 0
+            else:
+                self.counter += 1
         
         if self.counter > self.patience:
             return -1
@@ -247,6 +256,155 @@ class Trainer:
             ax2[i].imshow(soft_pred[i])
             ax2[i].axis("off")
         plt.show()
+        
+    def accuracy(self, predictions, target):
+        """
+        Computes the accuracy of the predictions against the true labels.
+        """
+        with torch.no_grad():
+            pred = f.softmax(predictions, dim=1)
+            pred_class = torch.argmax(pred, dim=1)
+            target_class = torch.argmax(target, dim=1)
+            correct = pred_class.eq(target_class).sum().item()
+            acc = correct / len(target)
+            return acc
+        
+
+    
+    def loop_clf(self, current_epoch, valid_dl=None, metric_fn=None):
+        
+        loss_value = 0
+        #Indicates start of batch
+        total_batches = 0
+        metric_val = 0 if metric_fn is not None else None
+        
+        if valid_dl is not None:
+            train = False
+            dl = valid_dl
+            torch.set_grad_enabled(False)
+            self.network.eval()
+            loop_mode = "Validation"
+        else:
+            train = True
+            dl = self.train_dl
+            torch.set_grad_enabled(True)
+            self.network.train()
+            loop_mode = "Training"
+                    
+        for img_batch, target_batch in tqdm(dl):
+                
+            total_batches += 1
+            #Putting the images on device
+            img_batch = img_batch.to(device)
+            target_batch = target_batch.to(device)
+            #Obtaining the loss and the predictions for current batch - This is multiclass classification
+            pred = self.network(img_batch)
+                
+            self.optimizer.zero_grad()
+                
+            loss = self.loss_function(pred, target_batch)
+            if metric_fn is not None:
+                metric_val += metric_fn(pred, target_batch)
+            
+            if train:
+                #Calculate gradients through backpropagation if this is the training looop
+                loss.backward()
+                #Update the model parameters
+                self.optimizer.step()
+                
+            loss_value += loss.item()
+        
+        loss_for_epoch = round(loss_value / total_batches, 3)
+        print(f"{loop_mode} Loss at epoch : {current_epoch+1} : {loss_for_epoch}")
+        
+        if metric_fn is not None:
+            metric_for_epoch = round(metric_val / total_batches, 3)
+            print(f"{loop_mode} Metric at epoch : {current_epoch+1} : {metric_for_epoch}")
+        
+        return loss_for_epoch, metric_for_epoch
+        
+    def plot(self, e, training_losses, validation_losses):
+        
+        # Create a list of the epoch numbers
+        epochs = range(1, e + 2)
+
+        # Plot the training loss
+        plt.plot(epochs, training_losses, 'r-', label='Training Loss', linewidth=2)
+
+        # Plot the validation loss
+        plt.plot(epochs, validation_losses, 'b--', label='Validation Loss', linewidth=2)
+
+        # Set the title and labels
+        plt.title('Training and Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+
+        # Add a legend
+        plt.legend()
+        # Show the plot
+        plt.show()
+    
+    def fit_classify(self, validation=False, valid_dl=None, model_checkpoint=True, model_save_path="./model_clf.pth"):
+        
+        training_losses = []
+        validation_losses = []
+        best_val_loss = float('inf')
+        
+        for e in range(self.epochs):
+            print(f"Starting epoch : {e+1} -------------------------------------------------------------------")
+            elapsed_time = 0
+            st = time.time()            
+            #Training Loop
+            loss, metric = self.loop_clf(e, None, self.accuracy)
+            training_losses.append(loss)
+            
+            if validation and valid_dl is not None:
+                
+                print("Running Validation Step")
+                ########### Validation step ##########################################################################################                
+                val_loss_for_epoch, val_metric = self.loop_clf(e, valid_dl, self.accuracy)
+                validation_losses.append(val_loss_for_epoch)
+                
+                #Model Checkpoint
+                if val_loss_for_epoch < best_val_loss and model_checkpoint:
+                    best_val_loss = val_loss_for_epoch
+                    torch.save(self.network.state_dict(), model_save_path)
+                    print(f"Saved model at val dice : {best_val_loss}")
+                
+                
+                #Early Stopping
+                if self.es:
+                    #Return value of the early stop
+                    rv = self.early_stop(val_loss_for_epoch, mode=0)
+                    if rv == -1:
+                        print(f"Early Stopping kicked in : Stopping at epoch {e+1}")
+                        break
+                
+                #Modifying learning rate
+                if self.scheduler is not None:
+                    self.scheduler.step(val_loss_for_epoch)
+                    
+                
+                #End of Epoch -----------------------------------------------------------------------------------------------------------------------
+            #Calculate the end time and log
+            et = time.time()
+            elapsed_time = et - st
+            print(f"Epoch : {e+1} took {self.get_mins(elapsed_time)}")
+            print("\n")
+                
+            ######### End of validation step #######
+            print("------------------------------------------------------------------------------------------")
+            print("\n")
+            print("\n")
+            print("\n")
+        
+        if not model_checkpoint:
+            torch.save(self.network.state_dict(), model_save_path)
+        
+        self.plot(e, training_losses, validation_losses)
+
+        
+
 
     def fit(self, log=True, validation=False, valid_dl=None, model_checkpoint=True, clf_loss=None, bcm_params=None,model_save_path="./model.pth"):
         

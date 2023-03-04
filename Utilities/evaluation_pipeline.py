@@ -386,6 +386,54 @@ class EvalPipeline:
                 
             
         plt.savefig(path, dpi=100)
+    
+    def stage_six(self, model_keys=[], path="./stage_6.csv"):
+
+        jaccard = JaccardSimilarity()
+        emr = ExactMatchRatio()
+
+        scores = {}
+
+
+        for i, model_name in enumerate(model_keys):
+            
+            pred = self.pred[model_name]
+
+            #Getting the global maxpool of the predictions
+            clf_pred = f.max_pool2d(pred, pred.shape[2:])
+            clf_pred = torch.squeeze(torch.squeeze(clf_pred, dim=-1), dim=-1)
+
+            #Getting the global maxpool of the ground truth
+            clf_target_batch = f.max_pool2d(self.gt, self.gt.shape[2:])
+            clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch, dim=-1), dim=-1).float()
+
+            js = jaccard(clf_pred, clf_target_batch)
+            emr_score = emr(clf_pred, clf_target_batch)
+
+            scores[model_name] = [js, emr_score]
+        
+        with open(path, "r") as s6:
+
+            s6.write("Model")
+            s6.write(",")
+            s6.write("Jaccard")
+            s6.write(",")
+            s6.write("Exact Match Ratio")
+            s6.write(",")
+            s6.write("\n")
+
+            for i, model_name in enumerate(model_keys):
+
+                s6.write(model_name)
+                s6.write(",")
+
+                #Write the jaccard score and exact match ratio
+                for metric in scores[model_name]:
+                    s6.write(metric)
+                    s6.write(",")
+
+                s6.write("\n")
+
         
         
         

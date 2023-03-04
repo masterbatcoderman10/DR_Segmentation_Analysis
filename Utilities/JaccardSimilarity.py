@@ -1,7 +1,7 @@
 class JaccardSimilarity(nn.Module):
     """This is a metric for multi-label classification"""
 
-    def __init__(self, threshold):
+    def __init__(self, threshold=0.5):
         self.threshold = threshold
     
     def forward(self, predictions, targets):
