@@ -22,6 +22,8 @@ class EvalPipeline:
         
     def prediction_gen(self):
 
+
+
         """Generates predictions for each segmentation model"""
         
         predictions = {}
@@ -38,6 +40,31 @@ class EvalPipeline:
             
         self.pred = predictions
     
+    def exact_match_ratio(self, predictions, targets, threshold=0.5):
+        """
+        :param predictions: tensor of shape (batch_size, num_classes) with predicted scores
+        :param targets: tensor of shape (batch_size, num_classes) with target scores
+        :return: exact match ratio
+        """
+        # binarize predictions using threshold
+        binary_predictions = torch.where(predictions > threshold, 1, 0)
+        # calculate element-wise equality between binary predictions and targets
+        equality = torch.eq(binary_predictions, targets)
+        # calculate row-wise sums of element-wise equality
+        row_sums = torch.sum(equality, dim=1)
+        # calculate exact match ratio
+        exact_match_ratio = torch.mean(torch.eq(row_sums, targets.shape[1]).float())
+        return exact_match_ratio
+    
+    def jaccard(self, predictions, targets, threshold=0.5):
+
+        binary_predictions = torch.where(predictions > threshold, 1, 0)
+        #Calculate the intersection between predictions and targets, sum in the class dimension
+        intersection = torch.sum(binary_predictions * targets, dim=1)
+        union = torch.sum((binary_predictions | targets), dim=1)
+
+        jaccard_score = torch.mean(intersection.float() / union.float())
+        return jaccard_score
     #This function swaps colors from a class map
     def color_swap(self, img):
     
@@ -329,8 +356,6 @@ class EvalPipeline:
                     hspace=0.4)
             
         plt.savefig(path, dpi=100)
-        
-    
     ### Stage 5 : F1 score plots per model per class
     
     def stage_five(self, model_keys=[],path="stage_5.png", csv_path="stage_5.csv"):
@@ -386,18 +411,14 @@ class EvalPipeline:
                 
             
         plt.savefig(path, dpi=100)
+
+    
     
     def stage_six(self, model_keys=[], path="./stage_6.csv"):
-
-        jaccard = JaccardSimilarity()
-        emr = ExactMatchRatio()
-
         scores = {}
-
-
         for i, model_name in enumerate(model_keys):
             
-            pred = self.pred[model_name]
+            pred = torch.array(self.pred[model_name])
 
             #Getting the global maxpool of the predictions
             clf_pred = f.max_pool2d(pred, pred.shape[2:])
@@ -407,8 +428,8 @@ class EvalPipeline:
             clf_target_batch = f.max_pool2d(self.gt, self.gt.shape[2:])
             clf_target_batch = torch.squeeze(torch.squeeze(clf_target_batch, dim=-1), dim=-1).float()
 
-            js = jaccard(clf_pred, clf_target_batch)
-            emr_score = emr(clf_pred, clf_target_batch)
+            js = self.jaccard(clf_pred, clf_target_batch)
+            emr_score = self.exact_match_ratio(clf_pred, clf_target_batch) 
 
             scores[model_name] = [js, emr_score]
         

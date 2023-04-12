@@ -42,7 +42,7 @@ imshow(test_img)
 
 %%%%%%% Image enhancement method 1 & 2
 
-target_dir = "../../../Data/retinal-lesions-v20191227/noise_removed/";
+target_dir = "../../../Data/retinal-lesions-v20191227/enhancement_one_x/";
 pre_image_files = dir(fullfile(data_dir, "*.jpg"));
 image_file_names = {pre_image_files.name};
 
@@ -56,16 +56,16 @@ for i = 1:length(pre_image_files)
 
     [R,G,B] = imsplit(img);
 
-    R = medfilt2(R, [3,3]);
-    G = medfilt2(G, [3,3]);
-    B = medfilt2(B, [3,3]);
+%     R = medfilt2(R, [3,3]);
+%     G = medfilt2(G, [3,3]);
+%     B = medfilt2(B, [3,3]);
 
-    %R = adapthisteq(R, "ClipLimit", 0.006);
-    %G = adapthisteq(G, "ClipLimit", 0.006);
-    %B = adapthisteq(B, "ClipLimit", 0.006);
+    R = adapthisteq(R, "ClipLimit", 0.006);
+    G = adapthisteq(G, "ClipLimit", 0.006);
+    B = adapthisteq(B, "ClipLimit", 0.006);
 
     enh_img = cat(3, R, G, B);
-
+    enh_img = im2uint8(enh_img);
     dest_path = target_dir + img_file;
     %Change to enh_img when applying any enhancement, just img for noise
     %removal

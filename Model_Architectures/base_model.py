@@ -1,7 +1,7 @@
 class BaseModel():
 
     def predict(self, dataloader):
-        """This function """
+        """This function returns the predictions for all images present in the dataloader"""
         self.eval()
 
         with torch.no_grad():
