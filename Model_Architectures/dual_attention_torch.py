@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+
 class SpatialAttention(nn.Module):
 
     def __init__(self, in_channels):
@@ -11,13 +12,14 @@ class SpatialAttention(nn.Module):
 
         self.alpha = nn.Parameter(torch.tensor(0.0))
 
-        self.conv1 = nn.Conv2d(in_channels=self.C, out_channels=self.C, kernel_size=1, stride=1)
-        self.conv2 = nn.Conv2d(in_channels=self.C, out_channels=self.C, kernel_size=1, stride=1)
-        self.conv3 = nn.Conv2d(in_channels=self.C, out_channels=self.C, kernel_size=1, stride=1)
+        self.conv1 = nn.Conv2d(
+            in_channels=self.C, out_channels=self.C, kernel_size=1, stride=1)
+        self.conv2 = nn.Conv2d(
+            in_channels=self.C, out_channels=self.C, kernel_size=1, stride=1)
+        self.conv3 = nn.Conv2d(
+            in_channels=self.C, out_channels=self.C, kernel_size=1, stride=1)
 
-    
     def forward(self, x):
-        
 
         H = x.shape[2]
         W = x.shape[3]
@@ -52,10 +54,10 @@ class ChannelAttention(nn.Module):
         self.beta = nn.Parameter(torch.tensor(0.0))
 
         self.C = in_channels
-    
+
     def forward(self, x):
 
-        a1=a2=a3=a4 = x
+        a1 = a2 = a3 = a4 = x
         H = x.shape[2]
         W = x.shape[3]
         N = H * W
@@ -75,6 +77,7 @@ class ChannelAttention(nn.Module):
         E = a1 + a2_pass
 
         return E
+
 
 class DualAttention(nn.Module):
 
@@ -99,9 +102,3 @@ class DualAttention(nn.Module):
 
         F = e1 + e2
         return F
-
-
-
-
-
-
