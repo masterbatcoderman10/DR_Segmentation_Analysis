@@ -65,3 +65,37 @@ For any issues or queries contact : maa089@alumni.bham.ac.uk
 
 
 ## Methodology
+
+![alt text](UNet.png)
+
+The U-Net architecture is a popular choice for medical image segmentation tasks and it serves as the basis for our models. The U-Net consists of an encoder-decoder architecture with skip connections between the subsequent convolutional blocks in the encoder and decoder. The skip connections help in preserving the spatial information and allow for better flow of gradients during training. However, the base U-Net isn't equipped to handle the complex and diverse nature of the DR lesions (with limited data) thus, we have experiemented with different additions to the base U-Net architecture.
+
+### U-Net with Pre-trained Encoders
+
+Using a pre-trained conv-net as the encoder in U-Net architecture is a significant improvement
+known as transfer learning. It has been shown to enhance performance, reduce training time, and
+computational resources. The pre-trained conv-net enables the U-Net to leverage learned feature
+representations, especially when training data is limited.
+
+![alt text](Simple_ResUNet.png)
+
+### U-Net with Attention Mechanism
+
+Attention is a mechanism that was utilized in the Transformer architecture to improve
+performance in the task of machine translation by training the model to ‘pay attention’ to words
+that offer more context, this mechanism has been adapted to computer vision tasks to train models
+to selectively focus on regions of the image that more important to the task. In the context of the
+U-Net, the use of attention mechanisms can enhance the features extracted from the encoder
+which can improve the performance of the model in image segmentation. This work looks at two
+types of attention mechanisms: 
+
+- dual attention
+- compact-split-attention
+
+#### Dual Attention
+
+Dual attention is mechanism that enhances a model’s ability to capture global features within
+images, it consists of two parts: position attention, and channel attention. 
+
+![Spatial Attention](Spatial_Attention.png)
+![Channel Attention](Channel_Attention.png)
