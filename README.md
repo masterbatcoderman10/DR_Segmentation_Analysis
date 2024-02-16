@@ -143,3 +143,40 @@ Loss functions ommited for brevity.
 
 ## Results
 
+To comprehensively evaluate the performance of the models, we have conducted both qualitative and quantitative analyses. The qualitative analysis involves visualizing the segmentation results of the models on the test set, while the quantitative analysis involves computing the performance metrics such as Dice coefficient, Jaccard index, sensitivity, specificity, and the F1 score. The quantitative analysis is conducted on both the individual lesion classes as well as the combined performance.
+
+For brevity we inclue results from only a few experiments.
+
+### U-Net with Pre-trained Encoders
+
+| Model Name | Cotton Wool Spots | Hard Exudate | Microaneurysm | Retinal Hemorrhage |
+|------------|-------------------|--------------|---------------|--------------------|
+| simple_vgg_unet | 0.223 | 0.606 | 0.235 | 0.447 |
+| complex_vgg_unet | 0.274 | 0.596 | 0.198 | 0.425 |
+| simple_res_unet | 0.358 | 0.625 | 0.208 | 0.476 |
+| complex_res_unet | 0.374 | 0.627 | 0.201 | 0.459 |
+| simple_b4_unet | 0.305 | 0.593 | 0.131 | 0.449 |
+| complex_b4_unet | 0.235 | 0.555 | nan | 0.432 |
+
+A look at the class specific F1 scores (in the table above) shows that the ResNet encoder models are performing significantly better than others at segmenting cotton wool spots, while also performing better than other models at segmenting hard exudates and retinal hemorrhages. This shows that ResNet based models are better suited at segmenting the yellow lesions.
+
+Moreover, the segmentation of microaneurysms was found to be particularly challenging, as evidenced by the poor performance of all models on this class. In particular, the EfficientNet-based models exhibited inferior results, with the complex_b4_unet failing to segment microaneurysms altogether.
+
+### U-Net with Attention Mechanism
+
+Applying dual attention has led to an insignificant improvement in performance for the vgg_unet however, the same has resulted in a sizeable decline in the performance of ResNet and EfficientNet based U-Nets as seen by observing the DSC and IoU score in TABLE 2. On the other hand, the addition of CSA attention has led to a significant improvement across all metrics for the VGG and ResNet based U-Nets with the csa_res_unet performing the best out of all listed U-Nets within the same table.
+
+![alt text](<Screenshot 2024-02-17 at 2.08.26 AM.png>)
+
+
+### Binary Class Map Weighting
+
+The figure below further illustrates the superior performance of the BCM trained U-Net on the microaneurysm class compared to the same model trained using the standard approach. The simple_res_unet classifies the microaneurysm as the retinal hemorrhage more often than the model trained using BCM. Additionally, an increase in performance over all other lesions can be observed for the bcm_res_unet_015. 
+
+![alt text](<Screenshot 2024-02-17 at 2.05.58 AM.png>)
+
+## Conclusion
+
+Through extensive experimentation, this work aimed to identify key characteristics for achieving higher performance in the DR lesion segmentation task. We analyzed different model architectures and mechanisms and found that using a pretrained encoder, a simple decoder, and the CSA attention module resulted in significant performance gains. We also analyzed the result different training approaches and observed that both multi-task training and the proposed binary-class-map weighting achieved their respective goals and resulted in performance gains in certain areas. 
+
+Due to logistical limitations, our experiments were restricted to a narrow range of pretrained encoders and decoder variations. Future work could focus on experimenting with combinations of model architectures and training approaches, including exploring how different aspects interact. For example, investigating whether combining CSA attention and BCM training would further increase the performance of already best-performing networks. Additionally, developments into the decoder of the U-Net could be explored, such as the idea of using a pretrained decoder.
